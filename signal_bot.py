@@ -1,9 +1,9 @@
-# signal_bot.py
+# signal_bot_final.py
 import os
 import logging
 import asyncio
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict
 from dataclasses import dataclass, field
 
 import telegram
@@ -39,8 +39,6 @@ logger = logging.getLogger(__name__)
 class User:
     chat_id: int
     username: str = ""
-    verified: bool = False
-    pocket_option_id: str = ""
 
 # === STORAGE ===
 class Storage:
@@ -88,33 +86,17 @@ class TelegramBot:
             return
 
         # 🚪 NON-ADMIN: Show registration
-        user = self.storage.get_user(chat_id)
-        if not user.verified:
-            text = (
-                "🔒 *Access Restricted*\n\n"
-                f"To use signals:\n"
-                f"1. Register at [Pocket Option]({POCKET_OPTION_LINK}) with promo: `{PROMO_CODE}`\n"
-                f"2. Deposit $10+\n"
-                f"3. Send your *Pocket Option ID* here\n\n"
-                "✅ I'll verify you manually!"
-            )
-            keyboard = [
-                [InlineKeyboardButton("🔗 Register Now", url=POCKET_OPTION_LINK)],
-                [InlineKeyboardButton("Contact Support", callback_data="support")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            if query:
-                await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
-            else:
-                await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
-            return
-
-        # 🟢 VERIFIED USER: Show normal menu
-        text = "💎 *MAIN MENU*\n\nChoose an option:"
+        text = (
+            "🔒 *Access Restricted*\n\n"
+            f"To use signals:\n"
+            f"1. Register at [Pocket Option]({POCKET_OPTION_LINK}) with promo: `{PROMO_CODE}`\n"
+            f"2. Deposit $10+\n"
+            f"3. Send your *Pocket Option ID* here\n\n"
+            "✅ I'll verify you manually!"
+        )
         keyboard = [
-            [InlineKeyboardButton("GET SIGNAL 📈", callback_data="get_signal")],
-            [InlineKeyboardButton("INSTRUCTION 📄", callback_data="instruction"),
-             InlineKeyboardButton("SUPPORT 🆘", callback_data="support")],
+            [InlineKeyboardButton("🔗 Register Now", url=POCKET_OPTION_LINK)],
+            [InlineKeyboardButton("Contact Support", callback_data="support")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         if query:
@@ -125,14 +107,13 @@ class TelegramBot:
     async def get_signal(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-
         chat_id = update.effective_chat.id
         # 👑 ADMIN: Full access
         if chat_id in ADMIN_CHAT_IDS:
             text = (
                 "👑 *BOSS SIGNAL MENU*\n\n"
-                "You can send signals manually or manage users.\n"
-                "Use /admin to open admin panel."
+                "You can send signals manually.\n"
+                "Use /admin to manage users."
             )
             keyboard = [[InlineKeyboardButton("Back «", callback_data="main_menu")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -158,7 +139,6 @@ class TelegramBot:
     async def instruction(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-
         chat_id = update.effective_chat.id
         if chat_id in ADMIN_CHAT_IDS:
             text = "👑 *BOSS INSTRUCTION*\n\nYou are the owner — no instructions needed!"
@@ -179,7 +159,6 @@ class TelegramBot:
     async def support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-
         chat_id = update.effective_chat.id
         # 👑 ADMIN: Show boss message
         if chat_id in ADMIN_CHAT_IDS:
@@ -223,7 +202,7 @@ class TelegramBot:
         await query.answer()
         text = "👥 *Users*:\n"
         for uid, user in self.storage.users.items():
-            status = "✅ Verified" if user.verified else "⏳ Pending"
+            status = "✅ Verified" if hasattr(user, 'verified') and user.verified else "⏳ Pending"
             text += f"\n{uid} ({user.username}) — {status}"
         keyboard = [[InlineKeyboardButton("« Back", callback_data="admin_panel")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -233,6 +212,8 @@ class TelegramBot:
         chat_id = update.effective_chat.id
         text = update.message.text.strip()
         user = self.storage.get_user(chat_id)
+        if not hasattr(user, 'verified'):
+            user.verified = False
         if not user.verified:
             user.pocket_option_id = text
             for admin_id in ADMIN_CHAT_IDS:
