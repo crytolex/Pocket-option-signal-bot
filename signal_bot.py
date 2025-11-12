@@ -71,9 +71,7 @@ class TelegramBot:
             await query.answer()
 
         chat_id = update.effective_chat.id
-        user = self.storage.get_user(chat_id)
-
-        # 👑 ADMIN: Show full menu + admin panel
+        # 👑 ADMIN: Show full menu
         if chat_id in ADMIN_CHAT_IDS:
             text = "👑 *BOSS MENU*\n\nYou are the owner!\nAccess everything below:"
             keyboard = [
@@ -89,7 +87,8 @@ class TelegramBot:
                 await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
             return
 
-        # 🚪 NON-ADMIN: Show registration if not verified
+        # 🚪 NON-ADMIN: Show registration
+        user = self.storage.get_user(chat_id)
         if not user.verified:
             text = (
                 "🔒 *Access Restricted*\n\n"
@@ -126,6 +125,21 @@ class TelegramBot:
     async def get_signal(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
+
+        chat_id = update.effective_chat.id
+        # 👑 ADMIN: Full access
+        if chat_id in ADMIN_CHAT_IDS:
+            text = (
+                "👑 *BOSS SIGNAL MENU*\n\n"
+                "You can send signals manually or manage users.\n"
+                "Use /admin to open admin panel."
+            )
+            keyboard = [[InlineKeyboardButton("Back «", callback_data="main_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+            return
+
+        # 🚪 NON-ADMIN: Registration message
         text = (
             f"🚀 *GET YOUR SIGNALS*\n\n"
             f"1. Register at [Pocket Option]({POCKET_OPTION_LINK})\n"
@@ -144,15 +158,20 @@ class TelegramBot:
     async def instruction(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-        text = (
-            "📘 *INSTRUCTION*\n\n"
-            "📌 How to use:\n"
-            f"1. Register at [Pocket Option]({POCKET_OPTION_LINK}) with promo `{PROMO_CODE}`\n"
-            "2. Deposit $10+\n"
-            "3. Send your ID to me\n"
-            "4. Once verified, use signals to trade\n\n"
-            "⚠️ Never risk more than 5% per trade."
-        )
+
+        chat_id = update.effective_chat.id
+        if chat_id in ADMIN_CHAT_IDS:
+            text = "👑 *BOSS INSTRUCTION*\n\nYou are the owner — no instructions needed!"
+        else:
+            text = (
+                "📘 *INSTRUCTION*\n\n"
+                "📌 How to use:\n"
+                f"1. Register at [Pocket Option]({POCKET_OPTION_LINK}) with promo `{PROMO_CODE}`\n"
+                "2. Deposit $10+\n"
+                "3. Send your ID to me\n"
+                "4. Once verified, use signals to trade\n\n"
+                "⚠️ Never risk more than 5% per trade."
+            )
         keyboard = [[InlineKeyboardButton("Back «", callback_data="main_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
@@ -160,7 +179,22 @@ class TelegramBot:
     async def support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-        text = "🆘 *SUPPORT*\n\nNeed help? Message me directly!"
+
+        chat_id = update.effective_chat.id
+        # 👑 ADMIN: Show boss message
+        if chat_id in ADMIN_CHAT_IDS:
+            text = (
+                "👑 *BOSS SUPPORT*\n\n"
+                "You are the owner — no need to contact anyone!\n"
+                "Use /admin to manage users."
+            )
+            keyboard = [[InlineKeyboardButton("Back «", callback_data="main_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+            return
+
+        # 🚪 NON-ADMIN: Open your DM
+        text = "🆘 *SUPPORT*\n\nFor help, contact me directly on Telegram."
         keyboard = [
             [InlineKeyboardButton("💬 Message Me", url=f"https://t.me/{SUPPORT_USERNAME}")],
             [InlineKeyboardButton("Back «", callback_data="main_menu")],
@@ -201,7 +235,6 @@ class TelegramBot:
         user = self.storage.get_user(chat_id)
         if not user.verified:
             user.pocket_option_id = text
-            # Notify admin
             for admin_id in ADMIN_CHAT_IDS:
                 await self.app.bot.send_message(
                     admin_id,
