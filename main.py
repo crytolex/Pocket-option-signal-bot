@@ -30,7 +30,7 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_CHAT_IDS = [int(cid.strip()) for cid in os.getenv("ADMIN_CHAT_IDS", "").split(",") if cid.strip()]
 POCKET_OPTION_LINK = os.getenv("POCKET_OPTION_LINK", "https://pocketoption.com/")
-PROMO_CODE = os.getenv("PROMO_CODE", "YVE200")
+PROMO_CODE = os.getenv("PROMO_CODE", "FRIENDVYEWRUMGEV")  # Updated!
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "your_telegram_username").replace("@", "")
 WELCOME_IMG_URL = os.getenv("WELCOME_IMG_URL", "")
 MENU_IMG_URL = os.getenv("MENU_IMG_URL", "")
@@ -57,7 +57,7 @@ PAIRS = {
         "EUR/USD OTC", "GBP/USD OTC", "USD/JPY OTC", "AUD/USD OTC", "USD/CAD OTC", "NZD/USD OTC",
         "EUR/JPY OTC", "GBP/JPY OTC", "AUD/JPY OTC", "CAD/JPY OTC", "BTC/USDT OTC", "ETH/USDT OTC",
         "SOL/USDT OTC", "XRP/USDT OTC", "XAU/USD OTC", "OIL/USD OTC", "US30 OTC", "NAS100 OTC",
-        "SP500 OTC", "GER40 OTC", "UK100 OTC", "CRYPTO IDX OTC"  # 22 OTC pairs
+        "SP500 OTC", "GER40 OTC", "UK100 OTC", "CRYPTO IDX OTC"
     ]
 }
 
@@ -78,6 +78,7 @@ class User:
 class Storage:
     def __init__(self):
         self.users: Dict[int, User] = {}
+        self.auto_suggestions_enabled = True  # Toggle for admin
 
     def get_user(self, chat_id: int) -> User:
         if chat_id not in self.users:
@@ -120,7 +121,6 @@ class TelegramBot:
             )
         except Exception as e:
             logger.error(f"Error in /start: {e}")
-            # Fallback without image
             await update.message.reply_text(
                 "Welcome to Pocket Signal Pro!\nClick below to start:",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Start ▶️", callback_data="main_menu")]])
@@ -153,7 +153,6 @@ class TelegramBot:
                 else:
                     await update.message.reply_photo(photo=MENU_IMG_URL, caption=caption, reply_markup=reply_markup, parse_mode="Markdown")
             except:
-                # Fallback without image
                 await (query.edit_message_text if query else update.message.reply_text)(
                     caption, reply_markup=reply_markup, parse_mode="Markdown"
                 )
@@ -282,19 +281,17 @@ class TelegramBot:
             await query.message.reply_text(caption, parse_mode="Markdown")
 
     async def instruction(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show instruction with image."""
+        """Show instruction with image (exactly like your screenshot)."""
         query = update.callback_query
         await query.answer()
         caption = (
             "📘 *INSTRUCTION*\n\n"
-            "📌 *How to use signals:*\n"
-            "1. Register with our link & promo code\n"
-            "2. Deposit $10+ to activate account\n"
-            "3. Send your Pocket Option ID to get verified\n"
-            "4. Use signals to trade manually\n\n"
-            "⚠️ *Risk Management:*\n"
-            "• Never risk >5% per trade\n"
-            "• Use stop-loss discipline"
+            "📌 *Connection Instructions:*\n"
+            f"1. Register at [PocketOption]({POCKET_OPTION_LINK}), apply promo code: `{PROMO_CODE}`\n"
+            "2. Fund your new account.\n"
+            "3. Launch the app and start receiving signals.\n"
+            "4. If a trade is losing, increase your next trade amount to compensate.\n\n"
+            "⚠️ *Never risk more than 5% of your balance per trade.*"
         )
         keyboard = [[InlineKeyboardButton("« Back", callback_data="main_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -319,6 +316,7 @@ class TelegramBot:
         caption = "🔐 *Admin Panel*\n\nManage your bot:"
         keyboard = [
             [InlineKeyboardButton("👥 Users", callback_data="admin_users")],
+            [InlineKeyboardButton("📡 Signal Control", callback_data="admin_signals")],
             [InlineKeyboardButton("❓ Commands", callback_data="admin_commands")],
             [InlineKeyboardButton("« Back", callback_data="main_menu")],
         ]
@@ -326,6 +324,49 @@ class TelegramBot:
         await (query.edit_message_caption if query else update.message.reply_text)(
             caption, reply_markup=reply_markup, parse_mode="Markdown"
         )
+
+    async def admin_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show all users."""
+        query = update.callback_query
+        await query.answer()
+        text = "👥 *Users*\n"
+        for uid, user in self.storage.users.items():
+            status = "✅ Verified" if user.verified else "⏳ Pending"
+            text += f"\n{uid} ({user.username}) — {status}"
+        keyboard = [[InlineKeyboardButton("« Back", callback_data="admin_panel")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+
+    async def admin_signals(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Toggle auto-suggestions."""
+        query = update.callback_query
+        await query.answer()
+        text = (
+            "📡 *Signal Control*\n\n"
+            f"Auto-Suggestions: {'✅ ON' if self.storage.auto_suggestions_enabled else '❌ OFF'}\n\n"
+            "Use this to enable/disable smart signals for all users."
+        )
+        keyboard = [
+            [InlineKeyboardButton("✅ Turn ON", callback_data="toggle_on"),
+             InlineKeyboardButton("❌ Turn OFF", callback_data="toggle_off")],
+            [InlineKeyboardButton("« Back", callback_data="admin_panel")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+
+    async def toggle_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Enable auto-suggestions."""
+        query = update.callback_query
+        await query.answer()
+        self.storage.auto_suggestions_enabled = True
+        await query.edit_message_text("✅ Auto-Suggestions ENABLED", parse_mode="Markdown")
+
+    async def toggle_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Disable auto-suggestions."""
+        query = update.callback_query
+        await query.answer()
+        self.storage.auto_suggestions_enabled = False
+        await query.edit_message_text("❌ Auto-Suggestions DISABLED", parse_mode="Markdown")
 
     async def admin_commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show admin commands."""
@@ -372,6 +413,10 @@ async def main():
     app.add_handler(CallbackQueryHandler(bot_interface.suggest_signal, pattern="^suggest_signal$"))
     app.add_handler(CallbackQueryHandler(bot_interface.instruction, pattern="^instruction$"))
     app.add_handler(CallbackQueryHandler(bot_interface.admin_panel, pattern="^admin_panel$"))
+    app.add_handler(CallbackQueryHandler(bot_interface.admin_users, pattern="^admin_users$"))
+    app.add_handler(CallbackQueryHandler(bot_interface.admin_signals, pattern="^admin_signals$"))
+    app.add_handler(CallbackQueryHandler(bot_interface.toggle_on, pattern="^toggle_on$"))
+    app.add_handler(CallbackQueryHandler(bot_interface.toggle_off, pattern="^toggle_off$"))
     app.add_handler(CallbackQueryHandler(bot_interface.admin_commands, pattern="^admin_commands$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot_interface.handle_user_id))
 
