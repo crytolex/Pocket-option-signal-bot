@@ -1,3 +1,8 @@
+# Force older version if needed
+try:
+    from telegram.ext import Updater
+except ImportError:
+    pass  # We're using Application now
 # main.py
 import os
 import logging
