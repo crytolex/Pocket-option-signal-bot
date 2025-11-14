@@ -1,8 +1,3 @@
-# Force older version if needed
-try:
-    from telegram.ext import Updater
-except ImportError:
-    pass  # We're using Application now
 # main.py
 import os
 import logging
@@ -35,13 +30,13 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_CHAT_IDS = [int(cid.strip()) for cid in os.getenv("ADMIN_CHAT_IDS", "").split(",") if cid.strip()]
 POCKET_OPTION_LINK = os.getenv("POCKET_OPTION_LINK", "https://pocketoption.com/")
-PROMO_CODE = os.getenv("PROMO_CODE", "FRIENDVYEWRUMGEV")  # Updated!
+PROMO_CODE = os.getenv("PROMO_CODE", "FRIENDVYEWRUMGEV")
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "your_telegram_username").replace("@", "")
 WELCOME_IMG_URL = os.getenv("WELCOME_IMG_URL", "")
 MENU_IMG_URL = os.getenv("MENU_IMG_URL", "")
 INSTRUCTION_IMG_URL = os.getenv("INSTRUCTION_IMG_URL", "")
 
-# === FULL PAIR LIST (60+ pairs) ===
+# === FULL PAIR LIST ===
 PAIRS = {
     "forex": [
         "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "NZD/USD", "EUR/GBP",
@@ -83,7 +78,7 @@ class User:
 class Storage:
     def __init__(self):
         self.users: Dict[int, User] = {}
-        self.auto_suggestions_enabled = True  # Toggle for admin
+        self.auto_suggestions_enabled = True
 
     def get_user(self, chat_id: int) -> User:
         if chat_id not in self.users:
@@ -91,7 +86,6 @@ class Storage:
         return self.users[chat_id]
 
 def generate_chart():
-    """Generate a simple chart image."""
     plt.figure(figsize=(6, 3))
     x = np.linspace(0, 10, 100)
     y = np.sin(x) + np.random.normal(0, 0.1, 100)
@@ -110,7 +104,6 @@ class TelegramBot:
         self.storage = storage
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /start command."""
         user = update.effective_user
         chat_id = user.id
         db_user = self.storage.get_user(chat_id)
@@ -132,13 +125,11 @@ class TelegramBot:
             )
 
     async def main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE = None):
-        """Show main menu with image."""
         query = update.callback_query if update.callback_query else None
         if query:
             await query.answer()
 
         chat_id = update.effective_chat.id
-        # 👑 ADMIN: Full access
         if chat_id in ADMIN_CHAT_IDS:
             caption = "👑 *BOSS MENU*\n\nYou are the owner!"
             keyboard = [
@@ -163,7 +154,6 @@ class TelegramBot:
                 )
             return
 
-        # 🚪 NON-ADMIN: Registration
         user = self.storage.get_user(chat_id)
         if not user.verified:
             text = (
@@ -177,7 +167,6 @@ class TelegramBot:
             await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
             return
 
-        # 🟢 VERIFIED USER
         caption = "💎 *MAIN MENU*"
         keyboard = [
             [InlineKeyboardButton("GET SIGNAL 📈", callback_data="get_signal")],
@@ -200,7 +189,6 @@ class TelegramBot:
             )
 
     async def get_signal(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show pair categories."""
         query = update.callback_query
         await query.answer()
         keyboard = [
@@ -215,7 +203,6 @@ class TelegramBot:
         await query.edit_message_caption(caption="📊 Choose market type:", reply_markup=reply_markup)
 
     async def pair_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show pairs for selected category."""
         query = update.callback_query
         await query.answer()
         category = query.data.split("_")[-1]
@@ -228,7 +215,6 @@ class TelegramBot:
         await query.edit_message_caption(caption=f"📊 {category.upper()} Pairs:", reply_markup=reply_markup)
 
     async def select_pair(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show expiry options for selected pair."""
         query = update.callback_query
         await query.answer()
         pair = query.data.replace("select_pair_", "")
@@ -243,7 +229,6 @@ class TelegramBot:
         await query.edit_message_caption(caption=f"⏱️ Choose expiry for {pair}:", reply_markup=reply_markup)
 
     async def select_expiry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Generate and send signal."""
         query = update.callback_query
         await query.answer()
         expiry = query.data.replace("select_expiry_", "")
@@ -268,7 +253,6 @@ class TelegramBot:
             await query.message.reply_text(caption, parse_mode="Markdown")
 
     async def suggest_signal(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Send smart suggestion."""
         query = update.callback_query
         await query.answer()
         caption = (
@@ -286,7 +270,6 @@ class TelegramBot:
             await query.message.reply_text(caption, parse_mode="Markdown")
 
     async def instruction(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show instruction with image (exactly like your screenshot)."""
         query = update.callback_query
         await query.answer()
         caption = (
@@ -309,7 +292,6 @@ class TelegramBot:
             await query.edit_message_text(caption, reply_markup=reply_markup, parse_mode="Markdown")
 
     async def admin_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show admin panel."""
         query = update.callback_query
         if query:
             await query.answer()
@@ -331,7 +313,6 @@ class TelegramBot:
         )
 
     async def admin_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show all users."""
         query = update.callback_query
         await query.answer()
         text = "👥 *Users*\n"
@@ -343,7 +324,6 @@ class TelegramBot:
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
     async def admin_signals(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Toggle auto-suggestions."""
         query = update.callback_query
         await query.answer()
         text = (
@@ -360,21 +340,18 @@ class TelegramBot:
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
     async def toggle_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Enable auto-suggestions."""
         query = update.callback_query
         await query.answer()
         self.storage.auto_suggestions_enabled = True
         await query.edit_message_text("✅ Auto-Suggestions ENABLED", parse_mode="Markdown")
 
     async def toggle_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Disable auto-suggestions."""
         query = update.callback_query
         await query.answer()
         self.storage.auto_suggestions_enabled = False
         await query.edit_message_text("❌ Auto-Suggestions DISABLED", parse_mode="Markdown")
 
     async def admin_commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show admin commands."""
         query = update.callback_query
         await query.answer()
         caption = (
@@ -389,7 +366,6 @@ class TelegramBot:
         await query.edit_message_caption(caption=caption, reply_markup=reply_markup, parse_mode="Markdown")
 
     async def handle_user_id(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle user verification."""
         chat_id = update.effective_chat.id
         user = self.storage.get_user(chat_id)
         if not user.verified:
@@ -407,7 +383,6 @@ async def main():
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     bot_interface = TelegramBot(app, storage)
 
-    # Register handlers
     app.add_handler(CommandHandler("start", bot_interface.start))
     app.add_handler(CommandHandler("admin", bot_interface.admin_panel))
     app.add_handler(CallbackQueryHandler(bot_interface.main_menu, pattern="^main_menu$"))
