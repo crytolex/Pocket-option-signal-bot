@@ -38,32 +38,14 @@ INSTRUCTION_IMG_URL = os.getenv("INSTRUCTION_IMG_URL", "")
 
 # === FULL PAIR LIST ===
 PAIRS = {
-    "forex": [
-        "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "NZD/USD", "EUR/GBP",
-        "EUR/JPY", "GBP/JPY", "AUD/JPY", "CAD/JPY", "CHF/JPY", "USD/CHF", "EUR/CHF"
-    ],
-    "crypto": [
-        "BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", "BNB/USDT",
-        "DOT/USDT", "MATIC/USDT", "LTC/USDT", "UNI/USDT", "LINK/USDT", "XLM/USDT", "ATOM/USDT",
-        "AVAX/USDT", "ALGO/USDT", "FTM/USDT", "NEAR/USDT", "ICP/USDT", "HBAR/USDT"
-    ],
-    "commodities": [
-        "XAU/USD", "XAG/USD", "OIL/USD", "COPPER/USD", "WHEAT/USD", "SOYBEAN/USD", "NGAS/USD"
-    ],
-    "indices": [
-        "US30", "NAS100", "SP500", "GER40", "UK100", "FRA40", "JPN225", "AUS200", "HKG50", "SG30"
-    ],
-    "otc": [
-        "EUR/USD OTC", "GBP/USD OTC", "USD/JPY OTC", "AUD/USD OTC", "USD/CAD OTC", "NZD/USD OTC",
-        "EUR/JPY OTC", "GBP/JPY OTC", "AUD/JPY OTC", "CAD/JPY OTC", "BTC/USDT OTC", "ETH/USDT OTC",
-        "SOL/USDT OTC", "XRP/USDT OTC", "XAU/USD OTC", "OIL/USD OTC", "US30 OTC", "NAS100 OTC",
-        "SP500 OTC", "GER40 OTC", "UK100 OTC", "CRYPTO IDX OTC"
-    ]
+    "forex": ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "NZD/USD", "EUR/GBP"],
+    "crypto": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT"],
+    "otc": ["EUR/USD OTC", "GBP/USD OTC", "USD/JPY OTC", "BTC/USDT OTC", "ETH/USDT OTC"]
 }
 
 EXPIRY_MAP = {
-    "otc": ["5 sec", "15 sec", "30 sec", "1 min", "2 min", "5 min", "15 min"],
-    "regular": ["1 min", "2 min", "5 min", "15 min", "30 min", "1 hour"]
+    "otc": ["5 sec", "15 sec", "30 sec", "1 min", "2 min", "5 min"],
+    "regular": ["1 min", "2 min", "5 min", "15 min"]
 }
 
 logging.basicConfig(level="INFO")
@@ -109,53 +91,31 @@ class TelegramBot:
         db_user = self.storage.get_user(chat_id)
         db_user.username = user.username or str(user.id)
         
+        keyboard = [[InlineKeyboardButton("Start ▶️", callback_data="main_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         try:
-            keyboard = [[InlineKeyboardButton("Start ▶️", callback_data="main_menu")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_photo(
                 photo=WELCOME_IMG_URL,
                 caption="Welcome to Pocket Signal Pro!",
                 reply_markup=reply_markup
             )
-        except Exception as e:
-            logger.error(f"Error in /start: {e}")
+        except:
             await update.message.reply_text(
                 "Welcome to Pocket Signal Pro!\nClick below to start:",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Start ▶️", callback_data="main_menu")]])
+                reply_markup=reply_markup
             )
 
     async def main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE = None):
-        query = update.callback_query if update.callback_query else None
+        query = update.callback_query
         if query:
             await query.answer()
 
         chat_id = update.effective_chat.id
-        if chat_id in ADMIN_CHAT_IDS:
-            caption = "👑 *BOSS MENU*\n\nYou are the owner!"
-            keyboard = [
-                [InlineKeyboardButton("GET SIGNAL 📈", callback_data="get_signal")],
-                [InlineKeyboardButton("SUGGEST SIGNAL 🤖", callback_data="suggest_signal")],
-                [InlineKeyboardButton("INSTRUCTION 📄", callback_data="instruction")],
-                [InlineKeyboardButton("SUPPORT 🆘", url=f"https://t.me/{SUPPORT_USERNAME}")],
-                [InlineKeyboardButton("🔐 Admin Panel", callback_data="admin_panel")],
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            try:
-                if query:
-                    await query.edit_message_media(
-                        media=InputMediaPhoto(MENU_IMG_URL, caption=caption, parse_mode="Markdown"),
-                        reply_markup=reply_markup
-                    )
-                else:
-                    await update.message.reply_photo(photo=MENU_IMG_URL, caption=caption, reply_markup=reply_markup, parse_mode="Markdown")
-            except:
-                await (query.edit_message_text if query else update.message.reply_text)(
-                    caption, reply_markup=reply_markup, parse_mode="Markdown"
-                )
-            return
-
+        is_admin = chat_id in ADMIN_CHAT_IDS
         user = self.storage.get_user(chat_id)
-        if not user.verified:
+        verified = user.verified or is_admin
+
+        if not verified:
             text = (
                 "🔒 *Access Restricted*\n\n"
                 f"1. Register at [Pocket Option]({POCKET_OPTION_LINK}) with promo: `{PROMO_CODE}`\n"
@@ -164,17 +124,22 @@ class TelegramBot:
             )
             keyboard = [[InlineKeyboardButton("🔗 Register Now", url=POCKET_OPTION_LINK)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+            if query:
+                await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
             return
 
-        caption = "💎 *MAIN MENU*"
+        caption = "👑 *BOSS MENU*" if is_admin else "💎 *MAIN MENU*"
         keyboard = [
             [InlineKeyboardButton("GET SIGNAL 📈", callback_data="get_signal")],
-            [InlineKeyboardButton("SUGGEST SIGNAL 🤖", callback_data="suggest_signal")],
             [InlineKeyboardButton("INSTRUCTION 📄", callback_data="instruction")],
             [InlineKeyboardButton("SUPPORT 🆘", url=f"https://t.me/{SUPPORT_USERNAME}")],
         ]
+        if is_admin:
+            keyboard.append([InlineKeyboardButton("🔐 Admin Panel", callback_data="admin_panel")])
         reply_markup = InlineKeyboardMarkup(keyboard)
+        
         try:
             if query:
                 await query.edit_message_media(
@@ -184,18 +149,17 @@ class TelegramBot:
             else:
                 await update.message.reply_photo(photo=MENU_IMG_URL, caption=caption, reply_markup=reply_markup, parse_mode="Markdown")
         except:
-            await (query.edit_message_text if query else update.message.reply_text)(
-                caption, reply_markup=reply_markup, parse_mode="Markdown"
-            )
+            if query:
+                await query.edit_message_text(caption, reply_markup=reply_markup, parse_mode="Markdown")
+            else:
+                await update.message.reply_text(caption, reply_markup=reply_markup, parse_mode="Markdown")
 
     async def get_signal(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
         keyboard = [
-            [InlineKeyboardButton("💱 Forex", callback_data="pair_category_forex"),
-             InlineKeyboardButton("🪙 Crypto", callback_data="pair_category_crypto")],
-            [InlineKeyboardButton("📈 Commodities", callback_data="pair_category_commodities"),
-             InlineKeyboardButton("🏦 Indices", callback_data="pair_category_indices")],
+            [InlineKeyboardButton("💱 Forex", callback_data="pair_category_forex")],
+            [InlineKeyboardButton("🪙 Crypto", callback_data="pair_category_crypto")],
             [InlineKeyboardButton("🌐 OTC (24/7)", callback_data="pair_category_otc")],
             [InlineKeyboardButton("« Back", callback_data="main_menu")],
         ]
@@ -207,9 +171,7 @@ class TelegramBot:
         await query.answer()
         category = query.data.split("_")[-1]
         pairs = PAIRS.get(category, [])
-        keyboard = []
-        for pair in pairs:
-            keyboard.append([InlineKeyboardButton(pair, callback_data=f"select_pair_{pair}")])
+        keyboard = [[InlineKeyboardButton(pair, callback_data=f"select_pair_{pair}")] for pair in pairs]
         keyboard.append([InlineKeyboardButton("« Back", callback_data="get_signal")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_caption(caption=f"📊 {category.upper()} Pairs:", reply_markup=reply_markup)
@@ -219,12 +181,9 @@ class TelegramBot:
         await query.answer()
         pair = query.data.replace("select_pair_", "")
         context.user_data["selected_pair"] = pair
-        
         expiries = EXPIRY_MAP["otc"] if "OTC" in pair else EXPIRY_MAP["regular"]
-        keyboard = []
-        for exp in expiries:
-            keyboard.append([InlineKeyboardButton(exp, callback_data=f"select_expiry_{exp}")])
-        keyboard.append([InlineKeyboardButton("« Back", callback_data=f"pair_category_{pair.split('/')[0].lower()}")])
+        keyboard = [[InlineKeyboardButton(exp, callback_data=f"select_expiry_{exp}")] for exp in expiries]
+        keyboard.append([InlineKeyboardButton("« Back", callback_data=f"pair_category_{category}")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_caption(caption=f"⏱️ Choose expiry for {pair}:", reply_markup=reply_markup)
 
@@ -235,31 +194,12 @@ class TelegramBot:
         pair = context.user_data.get("selected_pair", "Unknown")
         action = "BUY" if np.random.random() > 0.5 else "SELL"
         confidence = round(np.random.uniform(70, 95), 1)
-        
         caption = (
             f"✅ *Your Signal*\n\n"
             f"{'🟢' if action == 'BUY' else '🔴'} {action} {pair}\n"
             f"Confidence: {confidence}%\n"
             f"Expiry: {expiry}\n\n"
             f"Trade wisely!"
-        )
-        
-        try:
-            chart_img = generate_chart()
-            keyboard = [[InlineKeyboardButton("« Back", callback_data="main_menu")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.message.reply_photo(photo=chart_img, caption=caption, parse_mode="Markdown", reply_markup=reply_markup)
-        except:
-            await query.message.reply_text(caption, parse_mode="Markdown")
-
-    async def suggest_signal(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        await query.answer()
-        caption = (
-            f"🤖 *Smart Suggestion*\n\n"
-            f"🟢 BUY EUR/USD OTC\n"
-            f"Confidence: 86%\n"
-            f"Recommended Expiry: 5 min"
         )
         try:
             chart_img = generate_chart()
@@ -297,20 +237,22 @@ class TelegramBot:
             await query.answer()
         chat_id = update.effective_chat.id
         if chat_id not in ADMIN_CHAT_IDS:
-            await update.message.reply_text("🚫 Access denied.")
+            await (query.message.reply_text if query else update.message.reply_text)("🚫 Access denied.")
             return
             
         caption = "🔐 *Admin Panel*\n\nManage your bot:"
         keyboard = [
             [InlineKeyboardButton("👥 Users", callback_data="admin_users")],
             [InlineKeyboardButton("📡 Signal Control", callback_data="admin_signals")],
+            [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast_prompt")],
             [InlineKeyboardButton("❓ Commands", callback_data="admin_commands")],
             [InlineKeyboardButton("« Back", callback_data="main_menu")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await (query.edit_message_caption if query else update.message.reply_text)(
-            caption, reply_markup=reply_markup, parse_mode="Markdown"
-        )
+        if query:
+            await query.edit_message_caption(caption=caption, reply_markup=reply_markup, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(caption, reply_markup=reply_markup, parse_mode="Markdown")
 
     async def admin_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -328,8 +270,7 @@ class TelegramBot:
         await query.answer()
         text = (
             "📡 *Signal Control*\n\n"
-            f"Auto-Suggestions: {'✅ ON' if self.storage.auto_suggestions_enabled else '❌ OFF'}\n\n"
-            "Use this to enable/disable smart signals for all users."
+            f"Auto-Suggestions: {'✅ ON' if self.storage.auto_suggestions_enabled else '❌ OFF'}"
         )
         keyboard = [
             [InlineKeyboardButton("✅ Turn ON", callback_data="toggle_on"),
@@ -351,19 +292,10 @@ class TelegramBot:
         self.storage.auto_suggestions_enabled = False
         await query.edit_message_text("❌ Auto-Suggestions DISABLED", parse_mode="Markdown")
 
-    async def admin_commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def broadcast_prompt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-        caption = (
-            "🛠️ *Admin Commands*\n\n"
-            "/adduser 123456789 → Add user instantly\n"
-            "/banuser 123456789 → Ban user\n"
-            "/broadcast Hi! → Message all users\n"
-            "/admin → Open admin panel"
-        )
-        keyboard = [[InlineKeyboardButton("« Back", callback_data="admin_panel")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_caption(caption=caption, reply_markup=reply_markup, parse_mode="Markdown")
+        await query.edit_message_text("📢 Send your broadcast message:")
 
     async def handle_user_id(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
@@ -373,6 +305,19 @@ class TelegramBot:
             await update.message.reply_text("✅ Verified! Use /start to access signals.")
             for admin_id in ADMIN_CHAT_IDS:
                 await self.app.bot.send_message(admin_id, f"✅ User {chat_id} verified.")
+
+    async def admin_commands(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+        caption = (
+            "🛠️ *Admin Commands*\n\n"
+            "/adduser 123456789 → Add user instantly\n"
+            "/broadcast Hi! → Message all users\n"
+            "/admin → Open admin panel"
+        )
+        keyboard = [[InlineKeyboardButton("« Back", callback_data="admin_panel")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_caption(caption=caption, reply_markup=reply_markup, parse_mode="Markdown")
 
 # === MAIN ===
 async def main():
@@ -389,8 +334,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(bot_interface.get_signal, pattern="^get_signal$"))
     app.add_handler(CallbackQueryHandler(bot_interface.pair_category, pattern="^pair_category_"))
     app.add_handler(CallbackQueryHandler(bot_interface.select_pair, pattern="^select_pair_"))
-    app.add_handler(CallbackQueryHandler(bot_interface.select_expiry, pattern="^select_expiry_"))
-    app.add_handler(CallbackQueryHandler(bot_interface.suggest_signal, pattern="^suggest_signal$"))
+    app.add_handler(CallbackQueryHandler(bot_interface.select_expiry, pattern="^select_expiry$"))
     app.add_handler(CallbackQueryHandler(bot_interface.instruction, pattern="^instruction$"))
     app.add_handler(CallbackQueryHandler(bot_interface.admin_panel, pattern="^admin_panel$"))
     app.add_handler(CallbackQueryHandler(bot_interface.admin_users, pattern="^admin_users$"))
@@ -398,6 +342,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(bot_interface.toggle_on, pattern="^toggle_on$"))
     app.add_handler(CallbackQueryHandler(bot_interface.toggle_off, pattern="^toggle_off$"))
     app.add_handler(CallbackQueryHandler(bot_interface.admin_commands, pattern="^admin_commands$"))
+    app.add_handler(CallbackQueryHandler(bot_interface.broadcast_prompt, pattern="^broadcast_prompt$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot_interface.handle_user_id))
 
     await app.initialize()
